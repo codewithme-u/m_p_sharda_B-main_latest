@@ -11,11 +11,16 @@ import java.util.List;
 @Service
 public class InstitutionService {
 
-    private final InstitutionRepository repo;
+	private final InstitutionRepository repo;
 
-    public InstitutionService(InstitutionRepository repo) {
-        this.repo = repo;
-    }
+	public InstitutionService(InstitutionRepository repo) {
+	    this.repo = repo;
+	}
+
+	public Institution save(Institution inst) {
+	    return repo.save(inst);
+	}
+
 
     public List<Institution> getAll() {
         return repo.findAll();

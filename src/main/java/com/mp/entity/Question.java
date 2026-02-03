@@ -21,8 +21,9 @@ public class Question {
     private String type; // "MCQ" or "CODING"
 
     // --- MCQ FIELDS ---
-    @ElementCollection
+    @ElementCollection(fetch = FetchType.EAGER)
     private List<String> options;
+
     
     private String correctAnswer;
 

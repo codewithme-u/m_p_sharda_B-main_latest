@@ -1,9 +1,16 @@
 package com.mp.entity;
 
+import java.util.HashSet;
+import java.util.Set;
+
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "institutions")
+@AllArgsConstructor
+@NoArgsConstructor
 public class Institution {
 
     @Id
@@ -18,26 +25,56 @@ public class Institution {
 
     @Column(name = "institute_image")
     private String instituteImage;   // stored as URL or file path
+    
+    // ✅ NEW
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(
+        name = "institution_domains",
+        joinColumns = @JoinColumn(name = "institution_id")
+    )
+    @Column(name = "domain")
+    private Set<String> allowedDomains = new HashSet<>();
 
-    public Institution() {}
+	public Long getId() {
+		return id;
+	}
 
-    public Institution(Long id, String instituteName, String instituteLocation, String instituteImage) {
-        this.id = id;
-        this.instituteName = instituteName;
-        this.instituteLocation = instituteLocation;
-        this.instituteImage = instituteImage;
-    }
+	public void setId(Long id) {
+		this.id = id;
+	}
 
-    // Getters & Setters
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
+	public String getInstituteName() {
+		return instituteName;
+	}
 
-    public String getInstituteName() { return instituteName; }
-    public void setInstituteName(String instituteName) { this.instituteName = instituteName; }
+	public void setInstituteName(String instituteName) {
+		this.instituteName = instituteName;
+	}
 
-    public String getInstituteLocation() { return instituteLocation; }
-    public void setInstituteLocation(String instituteLocation) { this.instituteLocation = instituteLocation; }
+	public String getInstituteLocation() {
+		return instituteLocation;
+	}
 
-    public String getInstituteImage() { return instituteImage; }
-    public void setInstituteImage(String instituteImage) { this.instituteImage = instituteImage; }
+	public void setInstituteLocation(String instituteLocation) {
+		this.instituteLocation = instituteLocation;
+	}
+
+	public String getInstituteImage() {
+		return instituteImage;
+	}
+
+	public void setInstituteImage(String instituteImage) {
+		this.instituteImage = instituteImage;
+	}
+
+	public Set<String> getAllowedDomains() {
+		return allowedDomains;
+	}
+
+	public void setAllowedDomains(Set<String> allowedDomains) {
+		this.allowedDomains = allowedDomains;
+	}
+    
+    
+
 }

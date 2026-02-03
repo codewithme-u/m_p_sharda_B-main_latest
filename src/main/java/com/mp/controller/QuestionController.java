@@ -23,9 +23,16 @@ public class QuestionController {
 
     // Get questions for a specific quiz
     @GetMapping("/quiz/{quizId}")
-    public List<Question> getQuestionsByQuiz(@PathVariable Long quizId) {
-        return questionRepository.findByQuizId(quizId);
+    public ResponseEntity<List<Question>> getQuestionsByQuiz(@PathVariable Long quizId) {
+
+        // Ensure quiz exists
+        quizRepository.findById(quizId)
+            .orElseThrow(() -> new RuntimeException("Quiz not found"));
+
+        List<Question> questions = questionRepository.findByQuizId(quizId);
+        return ResponseEntity.ok(questions);
     }
+
 
     // Add a new question
     @PostMapping("/quiz/{quizId}")

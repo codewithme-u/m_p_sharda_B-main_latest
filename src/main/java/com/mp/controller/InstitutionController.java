@@ -2,6 +2,7 @@
 package com.mp.controller;
 
 import com.mp.entity.Institution;
+import java.util.stream.Collectors;
 import com.mp.service.InstitutionService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
@@ -115,4 +116,26 @@ public class InstitutionController {
         // Return the relative path for the database (e.g., "uploads/logo.png")
         return UPLOAD_DIR + "/" + fileName;
     }
+    
+    
+    @PutMapping("/{id}/domains")
+    public ResponseEntity<?> updateDomains(
+            @PathVariable Long id,
+            @RequestBody List<String> domains) {
+
+        Institution inst = service.getById(id);
+        if (inst == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        inst.setAllowedDomains(
+            domains.stream()
+                .map(String::toLowerCase)
+                .collect(Collectors.toSet())
+        );
+
+        service.save(inst);
+        return ResponseEntity.ok(inst);
+    }
+
 }

@@ -106,11 +106,30 @@ public class UserController {
 
         // Update Image if provided
         if (file != null && !file.isEmpty()) {
+
+            // ================= SAFETY CHECKS (ADD HERE) =================
+
+            // 1️⃣ Size check (500MB)
+            if (file.getSize() > 500L * 1024 * 1024) {
+                return ResponseEntity.badRequest().body("File too large (max 500MB)");
+            }
+
+            // 2️⃣ Type check (only images)
+            if (file.getContentType() == null ||
+                !file.getContentType().startsWith("image/")) {
+                return ResponseEntity.badRequest().body("Only image files are allowed");
+            }
+
+            // ============================================================
+
             try {
-                String fileName = StringUtils.cleanPath(Objects.requireNonNull(file.getOriginalFilename()));
-                // Add timestamp to filename to prevent browser caching issues and collisions
+                String fileName = StringUtils.cleanPath(
+                        Objects.requireNonNull(file.getOriginalFilename())
+                );
+
+                // Add timestamp to avoid collisions & caching issues
                 String uniqueFileName = System.currentTimeMillis() + "_" + fileName;
-                
+
                 Path uploadPath = Paths.get(UPLOAD_DIR);
                 if (!Files.exists(uploadPath)) {
                     Files.createDirectories(uploadPath);
@@ -119,10 +138,12 @@ public class UserController {
                 Path filePath = uploadPath.resolve(uniqueFileName);
                 Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
 
-                // Save relative path to database (e.g., "uploads/users/123_profile.jpg")
+                // Save relative path in DB
                 user.setProfileImageUrl(UPLOAD_DIR + "/" + uniqueFileName);
+
             } catch (IOException e) {
-                return ResponseEntity.internalServerError().body("Image upload failed: " + e.getMessage());
+                return ResponseEntity.internalServerError()
+                        .body("Image upload failed: " + e.getMessage());
             }
         }
 

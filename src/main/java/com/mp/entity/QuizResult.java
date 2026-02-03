@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Map;
 
 @Entity
@@ -26,7 +27,7 @@ public class QuizResult {
 
     private int score;
     private int totalQuestions;
-    private LocalDate attemptDate;
+    private LocalDateTime attemptDate;
     private String status;
 
     // Store User's Answers (QuestionID -> SelectedOption)
@@ -35,4 +36,20 @@ public class QuizResult {
     @MapKeyColumn(name = "question_id")
     @Column(name = "selected_option")
     private Map<Long, String> answers;
+    
+    
+ // ================= RETAKE CONTROL =================
+
+ // Attempt number: 1 = first attempt, 2 = retake, etc.
+ @Column(nullable = false)
+ private int attemptNumber = 1;
+
+ // Can student retake this quiz?
+ @Column(nullable = false)
+ private boolean retakeAllowed = false;
+
+ // Maximum number of attempts allowed (including first)
+ @Column(nullable = false)
+ private int maxAttempts = 1;
+
 }
