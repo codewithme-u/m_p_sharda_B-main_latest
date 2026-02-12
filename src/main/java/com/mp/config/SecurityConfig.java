@@ -74,7 +74,9 @@ public class SecurityConfig {
             "http://192.168.164.195:4200",
             "https://192.168.164.195:4200",
             "https://10.179.254.162:4200/",
-            "https://10.180.27.207:4200/"
+            "https://10.180.27.207:4200/",
+            "https://192.168.164.220:4200/"
+            
         ));
 
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
@@ -102,7 +104,8 @@ public class SecurityConfig {
             "http://192.168.164.195:4200",
             "https://192.168.164.195:4200",
             "https://10.179.254.162:4200/",
-            "https://10.180.27.207:4200/"
+            "https://10.180.27.207:4200/",
+            "https://192.168.164.220:4200/"
         ));
         config.setAllowCredentials(true);
         config.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
@@ -136,13 +139,38 @@ public class SecurityConfig {
             	    .requestMatchers("/api/institutions/**").permitAll()
 
             	    // quizzes + questions REQUIRE login
+            	 // ✅ Public: decide login flow for /play/{code}
+            	    .requestMatchers(HttpMethod.GET, "/api/quizzes/code/*/creator-type").permitAll()
+
+            	    // 🔐 All other quiz APIs require login
             	    .requestMatchers("/api/quizzes/**").authenticated()
+
             	    .requestMatchers("/api/questions/**").authenticated()
             	    .requestMatchers("/api/results/**").authenticated()
 
             	    .requestMatchers("/api/proctor/**").authenticated()
 
             	    .requestMatchers("/h2-console/**").permitAll()
+            	    
+            	    
+            	    
+            	 // ===============================
+            	 // 🟣 POOL (LIVE QUIZ) – ISOLATED
+            	 // ===============================
+
+            	 // WebSocket handshake (SockJS)
+            	 .requestMatchers("/ws/**").permitAll()
+
+            	 // Players (NO LOGIN)
+            	 .requestMatchers(HttpMethod.POST, "/api/pool/join").permitAll()
+            	 .requestMatchers(HttpMethod.GET, "/api/pool/players/**").permitAll()
+
+            	 // 🔐 POOL HOST ONLY
+            	 .requestMatchers("/api/pool/start/**").hasRole("POOL_USER")
+            	 .requestMatchers("/api/pool/**").hasRole("POOL_USER")
+
+
+
 
             	    .anyRequest().authenticated()
             	);
@@ -154,3 +182,4 @@ public class SecurityConfig {
         return http.build();
     }
 }
+

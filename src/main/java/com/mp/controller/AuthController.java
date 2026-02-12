@@ -40,6 +40,14 @@ public class AuthController {
      */
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest req) {
+    	
+        // 🔒 BACKEND HARD LOCK (NOT FRONTEND)
+    	if (!List.of("GENERAL", "STUDENT", "FACULTY", "POOL").contains(req.userType)) {
+            return ResponseEntity.badRequest().body(
+                Map.of("message", "Invalid userType")
+            );
+        }
+        
         if (req.roles != null && req.roles.stream().anyMatch(r -> r.equalsIgnoreCase("ADMIN"))) {
             Map<String, String> body = Collections.singletonMap("message", "Creating ADMIN via public register is not allowed.");
             return ResponseEntity.badRequest().body(body);
@@ -52,6 +60,12 @@ public class AuthController {
                     .filter(s -> !s.equalsIgnoreCase("ADMIN"))
                     .map(Role::valueOf)
                     .collect(Collectors.toSet());
+        
+     // 🔒 FORCE POOL ROLE
+        if ("POOL".equalsIgnoreCase(req.userType)) {
+            roles = Set.of(Role.POOL_USER);
+        }
+
         try {
             UserDTO created = userService.create(req.email, req.name, req.password, roles, req.userType, req.institutionId);
             return ResponseEntity.ok(created);
@@ -66,80 +80,80 @@ public class AuthController {
      * Login endpoint. Returns token + email + roles on success.
      * Optional: if LoginRequest.institutionId is provided, server will verify that the user belongs to that institution.
      */
-    @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody LoginRequest req) {
-        try {
-            authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(req.email, req.password));
-            var userOpt = userRepository.findByEmail(req.email);
-            if (userOpt.isEmpty()) {
-                return ResponseEntity.status(401).body(Collections.singletonMap("message", "User not found after authentication"));
-            }
-            User user = userOpt.get();
-
-            // If client provided an institutionId, enforce it server-side
-            Institution inst = user.getInstitution();
-            if (inst != null && inst.getAllowedDomains() != null) {
-                String emailDomain = user.getEmail().split("@")[1];
-
-                boolean allowed = inst.getAllowedDomains()
-                    .stream()
-                    .anyMatch(d -> d.equalsIgnoreCase(emailDomain));
-
-                if (!allowed) {
-                    return ResponseEntity.status(403)
-                        .body(Map.of(
-                            "message",
-                            "Your email domain is not allowed for this institution. Please contact your administrator."
-                        ));
-                }
-
-            }
-
-            if (req.institutionId != null) {
-                Long registeredInstId = extractInstitutionId(user); // helper below
-                if (registeredInstId == null) {
-                    return ResponseEntity.status(403).body(Collections.singletonMap("message", "Account is not associated with any institution"));
-                }
-                if (!registeredInstId.equals(req.institutionId)) {
-                    String msg = String.format("This account is registered with institution id=%d. Please choose the correct institution.",
-                            registeredInstId);
-                    return ResponseEntity.status(403).body(Collections.singletonMap("message", msg));
-                }
-            }
-
-            Set<String> roleNames = user.getRoles() == null
-            	    ? Set.of()
-            	    : user.getRoles().stream().map(Enum::name).collect(Collectors.toSet());
-
-            	String institutionName = user.getInstitution() != null
-            	    ? user.getInstitution().getInstituteName()
-            	    : null;
-
-            	Long institutionId = user.getInstitution() != null
-            	    ? user.getInstitution().getId()
-            	    : null;
-
-            	String token = jwtUtil.generateToken(
-            	    user.getEmail(),
-            	    roleNames
-            	);
-
-            	return ResponseEntity.ok(
-            	    new LoginResponse(
-            	        token,
-            	        user.getEmail(),
-            	        roleNames,
-            	        user.getUserType(),
-            	        institutionId,
-            	        institutionName
-            	    )
-            	);
-        } catch (AuthenticationException ex) {
-            return ResponseEntity.status(401).body(Collections.singletonMap("message", "Invalid credentials"));
-        } catch (Exception ex) {
-            return ResponseEntity.status(500).body(Collections.singletonMap("message", "Server error during authentication"));
-        }
-    }
+//    @PostMapping("/login")
+//    public ResponseEntity<?> login(@RequestBody LoginRequest req) {
+//        try {
+//            authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(req.email, req.password));
+//            var userOpt = userRepository.findByEmail(req.email);
+//            if (userOpt.isEmpty()) {
+//                return ResponseEntity.status(401).body(Collections.singletonMap("message", "User not found after authentication"));
+//            }
+//            User user = userOpt.get();
+//
+//            // If client provided an institutionId, enforce it server-side
+//            Institution inst = user.getInstitution();
+//            if (inst != null && inst.getAllowedDomains() != null) {
+//                String emailDomain = user.getEmail().split("@")[1];
+//
+//                boolean allowed = inst.getAllowedDomains()
+//                    .stream()
+//                    .anyMatch(d -> d.equalsIgnoreCase(emailDomain));
+//
+//                if (!allowed) {
+//                    return ResponseEntity.status(403)
+//                        .body(Map.of(
+//                            "message",
+//                            "Your email domain is not allowed for this institution. Please contact your administrator."
+//                        ));
+//                }
+//
+//            }
+//
+//            if (req.institutionId != null) {
+//                Long registeredInstId = extractInstitutionId(user); // helper below
+//                if (registeredInstId == null) {
+//                    return ResponseEntity.status(403).body(Collections.singletonMap("message", "Account is not associated with any institution"));
+//                }
+//                if (!registeredInstId.equals(req.institutionId)) {
+//                    String msg = String.format("This account is registered with institution id=%d. Please choose the correct institution.",
+//                            registeredInstId);
+//                    return ResponseEntity.status(403).body(Collections.singletonMap("message", msg));
+//                }
+//            }
+//
+//            Set<String> roleNames = user.getRoles() == null
+//            	    ? Set.of()
+//            	    : user.getRoles().stream().map(Enum::name).collect(Collectors.toSet());
+//
+//            	String institutionName = user.getInstitution() != null
+//            	    ? user.getInstitution().getInstituteName()
+//            	    : null;
+//
+//            	Long institutionId = user.getInstitution() != null
+//            	    ? user.getInstitution().getId()
+//            	    : null;
+//
+//            	String token = jwtUtil.generateToken(
+//            	    user.getEmail(),
+//            	    roleNames
+//            	);
+//
+//            	return ResponseEntity.ok(
+//            	    new LoginResponse(
+//            	        token,
+//            	        user.getEmail(),
+//            	        roleNames,
+//            	        user.getUserType(),
+//            	        institutionId,
+//            	        institutionName
+//            	    )
+//            	);
+//        } catch (AuthenticationException ex) {
+//            return ResponseEntity.status(401).body(Collections.singletonMap("message", "Invalid credentials"));
+//        } catch (Exception ex) {
+//            return ResponseEntity.status(500).body(Collections.singletonMap("message", "Server error during authentication"));
+//        }
+//    }
 
     /**
      * New endpoint: verify that an email belongs to an institution.
@@ -279,4 +293,93 @@ public class AuthController {
         } catch (Exception ignored) {}
         return null;
     }
+    
+    
+    
+    private ResponseEntity<?> authenticateAndValidateType(
+            LoginRequest req,
+            String expectedUserType
+    ) {
+        try {
+            authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(req.email, req.password)
+            );
+
+            User user = userRepository.findByEmail(req.email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+            // 🔒 HARD BLOCK: wrong login type
+            if (!expectedUserType.equalsIgnoreCase(user.getUserType())) {
+                return ResponseEntity.status(403).body(
+                    Map.of(
+                        "message",
+                        "This account is registered as " + user.getUserType()
+                        + ". Please use the correct login page."
+                    )
+                );
+            }
+
+            Set<String> roleNames = user.getRoles()
+                .stream().map(Enum::name).collect(Collectors.toSet());
+
+            String token = jwtUtil.generateToken(user.getEmail(), roleNames);
+
+            return ResponseEntity.ok(
+                new LoginResponse(
+                    token,
+                    user.getEmail(),
+                    roleNames,
+                    user.getUserType(),
+                    user.getInstitution() != null ? user.getInstitution().getId() : null,
+                    user.getInstitution() != null ? user.getInstitution().getInstituteName() : null
+                )
+            );
+
+        } catch (AuthenticationException e) {
+            return ResponseEntity.status(401)
+                .body(Map.of("message", "Invalid credentials"));
+        }
+    }
+    
+    
+    @PostMapping("/login/general")
+    public ResponseEntity<?> loginGeneral(@RequestBody LoginRequest req) {
+        return authenticateAndValidateType(req, "GENERAL");
+    }
+
+    @PostMapping("/login/student")
+    public ResponseEntity<?> loginStudent(@RequestBody LoginRequest req) {
+        return authenticateAndValidateType(req, "STUDENT");
+    }
+
+    @PostMapping("/login/faculty")
+    public ResponseEntity<?> loginFaculty(@RequestBody LoginRequest req) {
+        return authenticateAndValidateType(req, "FACULTY");
+    }
+    @PostMapping("/login/admin")
+    public ResponseEntity<?> loginAdmin(@RequestBody LoginRequest req) {
+        return authenticateAndValidateType(req, "ADMIN");
+    }
+
+
+    @PostMapping("/login")
+    public ResponseEntity<?> loginBlocked() {
+        return ResponseEntity.status(400).body(
+            Map.of(
+                "message",
+                "Please use role-specific login endpoints: /login/general, /login/student, /login/faculty"
+            )
+        );
+    }
+
+    
+    
+    
+    
+    @PostMapping("/login/pool")
+    public ResponseEntity<?> loginPool(@RequestBody LoginRequest req) {
+        return authenticateAndValidateType(req, "POOL");
+    }
+
+
 }

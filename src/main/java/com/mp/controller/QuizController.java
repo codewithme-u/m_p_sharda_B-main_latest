@@ -88,31 +88,85 @@ public class QuizController {
 		String quizCreatorType = String.valueOf(quiz.getCreatedBy().getUserType());
 		String playerUserType = String.valueOf(student.getUserType());
 
-		// ❌ Enforce GENERAL vs INSTITUTE separation
-		if (!quizCreatorType.equals(playerUserType)) {
-			if ("GENERAL".equals(quizCreatorType)) {
-				return ResponseEntity.status(403)
-						.body(Map.of("message", "Access Denied: This quiz is for General users only."));
-			}
-			if ("INSTITUTE".equals(quizCreatorType)) {
-				return ResponseEntity.status(403)
-						.body(Map.of("message", "Access Denied: Institutional students only."));
-			}
+
+		// ❌ BLOCK PUBLIC GENERAL USERS FROM INSTITUTE QUIZ
+//		if (quiz.getCreatedBy().getInstitution() != null) {
+//
+//		    if (student.getInstitution() == null) {
+//		        return ResponseEntity.status(403).body(
+//		            Map.of(
+//		                "reason", "INSTITUTE_ONLY",
+//		                "message", "This quiz is restricted to institutional students only."
+//		            )
+//		        );
+//		    }
+//
+//		    Long studentInstId = student.getInstitution().getId();
+//		    Long quizInstId = quiz.getCreatedBy().getInstitution().getId();
+//
+//		    if (!studentInstId.equals(quizInstId)) {
+//		        return ResponseEntity.status(403).body(
+//		            Map.of(
+//		                "reason", "INSTITUTION_MISMATCH",
+//		                "message", "This quiz belongs to another institution."
+//		            )
+//		        );
+//		    }
+//		}
+		
+		
+		// ================= STRICT ROLE BASED ACCESS CONTROL =================
+
+		// CASE 1: GENERAL QUIZ → ONLY GENERAL USERS
+		if (quiz.getCreatedBy().getInstitution() == null) {
+
+		    if (!"GENERAL".equalsIgnoreCase(playerUserType)) {
+		        return ResponseEntity.status(403).body(
+		            Map.of(
+		                "reason", "GENERAL_ONLY",
+		                "message", "This quiz is for General users only."
+		            )
+		        );
+		    }
 		}
 
-		// ❌ Enforce institution lock
-		if ("INSTITUTE".equals(quizCreatorType)) {
-			if (student.getInstitution() == null) {
-				return ResponseEntity.status(403).body(Map.of("message", "Access Denied: No institution linked."));
-			}
+		// CASE 2: INSTITUTE QUIZ → ONLY STUDENT OF SAME INSTITUTION
+		if (quiz.getCreatedBy().getInstitution() != null) {
 
-			Long studentInstId = student.getInstitution().getId();
-			Long quizInstId = quiz.getCreatedBy().getInstitution().getId();
+		    // Must be STUDENT
+		    if (!"STUDENT".equalsIgnoreCase(playerUserType)) {
+		        return ResponseEntity.status(403).body(
+		            Map.of(
+		                "reason", "STUDENT_ONLY",
+		                "message", "Only students can play institutional quizzes."
+		            )
+		        );
+		    }
 
-			if (!studentInstId.equals(quizInstId)) {
-				return ResponseEntity.status(403).body(Map.of("message", "Access Denied: Institution mismatch."));
-			}
+		    // Must belong to institution
+		    if (student.getInstitution() == null) {
+		        return ResponseEntity.status(403).body(
+		            Map.of(
+		                "reason", "INSTITUTE_ONLY",
+		                "message", "This quiz is restricted to institutional students only."
+		            )
+		        );
+		    }
+
+		    Long studentInstId = student.getInstitution().getId();
+		    Long quizInstId = quiz.getCreatedBy().getInstitution().getId();
+
+		    if (!studentInstId.equals(quizInstId)) {
+		        return ResponseEntity.status(403).body(
+		            Map.of(
+		                "reason", "INSTITUTION_MISMATCH",
+		                "message", "This quiz belongs to another institution."
+		            )
+		        );
+		    }
 		}
+
+
 		
 		
 		// ================= RETAKE CHECK (BLOCK EARLY) =================
@@ -142,8 +196,15 @@ public class QuizController {
 		if (principal == null)
 			return ResponseEntity.status(401).build();
 
-		return ResponseEntity
-				.ok(service.createQuiz(payload.get("title"), payload.get("description"), principal.getName()));
+		return ResponseEntity.ok(
+			    service.createQuiz(
+			        payload.get("title"),
+			        payload.get("description"),
+			        principal.getName(),
+			        "GENERAL"
+			    )
+			);
+
 	}
 
 	@DeleteMapping("/{id}")
@@ -364,7 +425,12 @@ return ResponseEntity.status(403)
 	        return ResponseEntity.status(401).body("Unauthorized");
 	    }
 
-	    Quiz quiz = service.createQuiz(title, description, principal.getName());
+	    Quiz quiz = service.createQuiz(
+	    	    title,
+	    	    description,
+	    	    principal.getName(),
+	    	    "GENERAL"
+	    	);
 
 	    // 🧠 Optional import
 	    if (file != null && !file.isEmpty()) {

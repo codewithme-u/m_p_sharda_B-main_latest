@@ -1,5 +1,7 @@
 package com.mp.controller;
 
+import com.mp.dto.ParticipantReportDTO;
+import com.mp.dto.ReviewQuestionDTO;
 import com.mp.entity.Question;
 import com.mp.entity.Quiz;
 import com.mp.entity.QuizResult;
@@ -150,14 +152,38 @@ public class QuizResultController {
 	// 3. GET PARTICIPANTS (Teacher Dashboard)
 	// ============================================================
 	@GetMapping("/participants/{quizId}")
-	public ResponseEntity<List<ParticipantDTO>> getParticipants(@PathVariable Long quizId) {
-		List<QuizResult> results = resultRepository.findByQuizIdOrderByScoreDesc(quizId);
+	public ResponseEntity<List<ParticipantReportDTO>> getParticipants(@PathVariable Long quizId, Principal principal) {
 
-		List<ParticipantDTO> dtos = results.stream().map(r -> new ParticipantDTO(r.getUser().getName(),
-				r.getUser().getEmail(), r.getScore(), r.getTotalQuestions(), r.getAttemptDate().toString()))
-				.collect(Collectors.toList());
+	    Quiz quiz = quizRepository.findById(quizId)
+	            .orElseThrow(() -> new RuntimeException("Quiz not found"));
 
-		return ResponseEntity.ok(dtos);
+	    // 🔐 Teacher-only access
+	    if (principal == null || 
+	        !quiz.getCreatedBy().getEmail().equals(principal.getName())) {
+	        return ResponseEntity.status(403).build();
+	    }
+
+	    List<QuizResult> results =
+	            resultRepository.findByQuizIdOrderByScoreDesc(quizId);
+
+	    List<ParticipantReportDTO> dtos = results.stream().map(r -> {
+	        ParticipantReportDTO dto = new ParticipantReportDTO();
+	        dto.resultId = r.getId();                       // ✅ THIS FIXES EVERYTHING
+	        dto.studentName = r.getUser().getName();
+	        dto.email = r.getUser().getEmail();
+	        dto.score = r.getScore();
+	        dto.totalQuestions = r.getTotalQuestions();
+	        dto.percentage =
+	        	    r.getTotalQuestions() == 0
+	        	        ? 0
+	        	        : Math.round((r.getScore() * 100.0) / r.getTotalQuestions());
+
+	        dto.status = r.getStatus();
+	        dto.attemptDate = r.getAttemptDate().toLocalDate();
+	        return dto;
+	    }).collect(Collectors.toList());
+
+	    return ResponseEntity.ok(dtos);
 	}
 
 	// ============================================================
@@ -188,17 +214,37 @@ public class QuizResultController {
 				: resultRepository.findByQuizIdOrderByAttemptDateDesc(quizId);
 
 		List<Map<String, Object>> response = results.stream().map(r -> {
-			Map<String, Object> map = new java.util.HashMap<>();
-			map.put("resultId", r.getId());
-			map.put("name", r.getUser().getName());
-			map.put("email", r.getUser().getEmail());
-			map.put("score", r.getScore());
-			map.put("totalQuestions", r.getTotalQuestions());
-			map.put("percentage", Math.round((r.getScore() * 100.0) / r.getTotalQuestions()));
-			map.put("status", r.getStatus());
-			map.put("attemptDate", r.getAttemptDate()); // ✅ IMPORTANT
-			return map;
+		    Map<String, Object> map = new java.util.HashMap<>();
+
+		    int attempted = r.getAnswers() != null ? r.getAnswers().size() : 0;
+		    int correct = r.getScore();
+		    int incorrect = Math.max(attempted - correct, 0);
+		    int notAttempted = Math.max(r.getTotalQuestions() - attempted, 0);
+
+		    map.put("resultId", r.getId());
+		    map.put("name", r.getUser().getName());
+		    map.put("email", r.getUser().getEmail());
+
+		    map.put("score", correct);   // 👈 ADD THIS
+		    map.put("correct", correct);
+		    map.put("incorrect", incorrect);
+		    map.put("attempted", attempted);
+		    map.put("notAttempted", notAttempted);
+
+		    map.put("totalQuestions", r.getTotalQuestions());
+		    map.put(
+		        "percentage",
+		        r.getTotalQuestions() == 0
+		            ? 0
+		            : Math.round((correct * 100.0) / r.getTotalQuestions())
+		    );
+
+		    map.put("status", r.getStatus());
+		    map.put("attemptDate", r.getAttemptDate());
+
+		    return map;
 		}).collect(Collectors.toList());
+
 
 		return ResponseEntity.ok(response);
 	}
@@ -233,7 +279,7 @@ public class QuizResultController {
 				: resultRepository.findByQuizIdOrderByAttemptDateDesc(quizId);
 
 		response.setContentType("text/csv");
-		String safeTitle = quiz.getTitle().replaceAll("\\s+", "_");
+		String safeTitle = quiz.getTitle().replaceAll("[^a-zA-Z0-9_-]", "_");
 
 		response.setHeader("Content-Disposition",
 				"attachment; filename=" + safeTitle + "_totalStudents(" + results.size() + ").csv");
@@ -282,7 +328,7 @@ public class QuizResultController {
 				: resultRepository.findByQuizIdOrderByAttemptDateDesc(quizId);
 
 		response.setContentType("application/pdf");
-		String safeTitle = quiz.getTitle().replaceAll("\\s+", "_");
+		String safeTitle = quiz.getTitle().replaceAll("[^a-zA-Z0-9_-]", "_");
 
 		String filename = safeTitle + "_totalStudents(" + results.size() + ").pdf";
 
@@ -321,10 +367,16 @@ public class QuizResultController {
 			// 📄 RESPONSE HEADERS
 			response.setContentType("application/pdf");
 
-			String filename = result.getUser().getName().replaceAll("\\s+", "_") + "_"
-					+ result.getQuiz().getTitle().replaceAll("\\s+", "_") + ".pdf";
+			String studentName = result.getUser().getName().replaceAll("[^a-zA-Z0-9_-]", "_");
+			String quizTitle = result.getQuiz().getTitle().replaceAll("[^a-zA-Z0-9_-]", "_");
 
-			response.setHeader("Content-Disposition", "attachment; filename=\"" + filename + "\"");
+			String filename = studentName + "_" + quizTitle + ".pdf";
+
+			response.setHeader(
+			    "Content-Disposition",
+			    "attachment; filename=\"" + filename + "\""
+			);
+
 
 			// 🧾 GENERATE PDF
 			pdfService.generateAnswerSheet(response.getOutputStream(), result);
@@ -345,41 +397,58 @@ public class QuizResultController {
 	// ============================================================
 	@GetMapping("/review/{resultId}")
 	public ResponseEntity<?> getReviewDetails(@PathVariable Long resultId, Principal principal) {
-		if (principal == null) {
-			return ResponseEntity.status(401).build();
-		}
 
-		QuizResult result = resultRepository.findById(resultId)
-				.orElseThrow(() -> new RuntimeException("Result not found"));
+	    if (principal == null) {
+	        return ResponseEntity.status(401).build();
+	    }
 
-		String email = principal.getName();
+	    QuizResult result = resultRepository.findById(resultId)
+	        .orElseThrow(() -> new RuntimeException("Result not found"));
 
-		boolean isStudent = result.getUser().getEmail().equals(email);
+	    String email = principal.getName();
 
-		boolean isTeacher = result.getQuiz().getCreatedBy().getEmail().equals(email);
+	    boolean isStudent = result.getUser().getEmail().equals(email);
+	    boolean isTeacher = result.getQuiz().getCreatedBy().getEmail().equals(email);
 
-		if (!isStudent && !isTeacher) {
-			return ResponseEntity.status(403).body("Access Denied");
-		}
+	    if (!isStudent && !isTeacher) {
+	        return ResponseEntity.status(403).body("Access Denied");
+	    }
 
-		List<Question> questions = questionRepository.findByQuizId(result.getQuiz().getId());
+	    // ✅ CREATE DTO FIRST
+	    ReviewDTO dto = new ReviewDTO();
 
-		ReviewDTO dto = new ReviewDTO();
-		dto.quizTitle = result.getQuiz().getTitle();
-		dto.quizCode = result.getQuiz().getCode();
-		dto.facultyName = result.getQuiz().getCreatedBy().getName();
-		dto.facultyEmail = result.getQuiz().getCreatedBy().getEmail();
-		dto.score = result.getScore();
-		dto.totalQuestions = result.getTotalQuestions();
-		dto.userAnswers = result.getAnswers();
-		dto.questions = questions;
+	    dto.resultId = result.getId();   // ✅ ADD THIS
+	    dto.quizTitle = result.getQuiz().getTitle();
+	    dto.quizCode = result.getQuiz().getCode();
+	    dto.facultyName = result.getQuiz().getCreatedBy().getName();
+	    dto.facultyEmail = result.getQuiz().getCreatedBy().getEmail();
+	    dto.score = result.getScore();
+	    dto.totalQuestions = result.getTotalQuestions();
+	    dto.userAnswers = result.getAnswers();
 
-		// ✅ FIX — REQUIRED
-		dto.attemptNumber = result.getAttemptNumber();
-		dto.retakeAllowed = result.isRetakeAllowed();
 
-		return ResponseEntity.ok(dto);
+	    // ✅ MAP QUESTIONS SAFELY
+	    List<Question> questions =
+	        questionRepository.findByQuizId(result.getQuiz().getId());
+
+	    dto.questions = questions.stream().map(q -> {
+	        ReviewQuestionDTO rq = new ReviewQuestionDTO();
+	        rq.id = q.getId();
+	        rq.content = q.getContent();
+	        rq.type = q.getType();           // 🔥 THIS FIXES EVERYTHING
+	        rq.options = q.getOptions();
+	        rq.correctAnswer = q.getCorrectAnswer();
+
+	        return rq;
+	    }).collect(Collectors.toList());
+
+	    // ✅ RETAKE INFO
+	    dto.attemptNumber = result.getAttemptNumber();
+	    dto.retakeAllowed = result.isRetakeAllowed();
+
+	    return ResponseEntity.ok(dto);
 	}
+
 	@PostMapping("/review/{resultId}/allow-retake")
 	public ResponseEntity<?> allowRetake(@PathVariable Long resultId, Principal principal) {
 
@@ -446,36 +515,42 @@ public class QuizResultController {
 	}
 
 
-	public static class ParticipantDTO {
-		public String name;
-		public String email;
-		public int score;
-		public int totalQuestions;
-		public String date;
-
-		public ParticipantDTO(String name, String email, int score, int totalQuestions, String date) {
-			this.name = name;
-			this.email = email;
-			this.score = score;
-			this.totalQuestions = totalQuestions;
-			this.date = date;
-		}
-	}
+//	public static class ParticipantDTO {
+//		public String name;
+//		public String email;
+//		public int score;
+//		public int totalQuestions;
+//		public String date;
+//
+//		public ParticipantDTO(String name, String email, int score, int totalQuestions, String date) {
+//			this.name = name;
+//			this.email = email;
+//			this.score = score;
+//			this.totalQuestions = totalQuestions;
+//			this.date = date;
+//		}
+//	}
 
 	public static class ReviewDTO {
-		public String quizTitle;
-		public String quizCode;
-		public String facultyName;
-		public String facultyEmail;
-		public int score;
-		public int totalQuestions;
+		public Long resultId; // ✅ ADD THIS
+	    public String quizTitle;
+	    public String quizCode;
+	    public String facultyName;
+	    public String facultyEmail;
+	    public int score;
+	    public int totalQuestions;
 
-		// ✅ NEW
-		public int attemptNumber;
-		public boolean retakeAllowed;
+	    public int attemptNumber;
+	    public boolean retakeAllowed;
 
-		public Map<Long, String> userAnswers;
-		public List<Question> questions;
+	    public Map<Long, String> userAnswers;
+
+	    // ❌ REMOVE THIS
+	    // public List<Question> questions;
+
+	    // ✅ ADD THIS
+	    public List<ReviewQuestionDTO> questions;
 	}
+
 
 }

@@ -62,15 +62,19 @@ public class UserService {
 	    	    .emailVerified(false);
 
 	    	// 🔥 AUTO-SYNC role → userType
-	    	if (roles.contains(Role.STUDENT)) {
-	    	    userBuilder.userType("STUDENT");
-	    	} else if (roles.contains(Role.TEACHER)) {
-	    	    userBuilder.userType("FACULTY");
-	    	} else if (roles.contains(Role.GENERAL_USER)) {
-	    	    userBuilder.userType("GENERAL");
-	    	} else {
-	    	    userBuilder.userType(userType); // fallback
-	    	}
+	 // 🔥 AUTO-SYNC role → userType (FINAL)
+	    if (roles.contains(Role.POOL_USER)) {
+	        userBuilder.userType("POOL");
+	    } else if (roles.contains(Role.STUDENT)) {
+	        userBuilder.userType("STUDENT");
+	    } else if (roles.contains(Role.TEACHER)) {
+	        userBuilder.userType("FACULTY");
+	    } else if (roles.contains(Role.GENERAL_USER)) {
+	        userBuilder.userType("GENERAL");
+	    } else {
+	        userBuilder.userType(userType);
+	    }
+
 
 
 	    Institution inst = null;
