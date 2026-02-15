@@ -34,16 +34,26 @@ public class QuizService {
 	}
 
 	// ✅ UPDATED: Save quiz with the creator
-	public Quiz createQuiz(String title, String description, String userEmail) {
-		// Find the user who is creating this
-		User creator = userRepository.findByEmail(userEmail).orElseThrow(() -> new RuntimeException("User not found"));
+	public Quiz createQuiz(String title, String description, String email, String creatorType) {
 
-		String uniqueCode = Long.toHexString(Double.doubleToLongBits(Math.random())).substring(0, 6).toUpperCase();
+	    // ✅ Find creator user
+	    User creator = userRepository.findByEmail(email)
+	            .orElseThrow(() -> new RuntimeException("User not found"));
 
-		// Pass creator to constructor
-		Quiz quiz = new Quiz(title, description, uniqueCode, creator);
-		return repository.save(quiz);
+	    // ✅ Generate unique quiz code
+	    String uniqueCode = Long.toHexString(
+	            Double.doubleToLongBits(Math.random())
+	    ).substring(0, 6).toUpperCase();
+
+	    // ✅ Create quiz
+	    Quiz quiz = new Quiz(title, description, uniqueCode, creator);
+
+	    // ✅ IMPORTANT: Set creator type
+	    quiz.setCreatorType(creatorType);
+
+	    return repository.save(quiz);
 	}
+
 
 	public void deleteQuiz(Long id) {
 		repository.deleteById(id);

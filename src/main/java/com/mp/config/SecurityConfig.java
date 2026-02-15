@@ -6,6 +6,7 @@ import com.mp.security.JwtUtil;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import org.springframework.core.Ordered;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -64,20 +65,14 @@ public class SecurityConfig {
     /**
      * CORS configuration used by Spring Security.
      */
+ 
     @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
+    @Profile("dev")
+    public CorsConfigurationSource devCorsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
 
-        config.setAllowedOriginPatterns(List.of(
-            "http://localhost:4200",
-            "https://localhost:4200",
-            "http://192.168.164.195:4200",
-            "https://192.168.164.195:4200",
-            "https://10.179.254.162:4200/",
-            "https://10.180.27.207:4200/"
-        ));
-
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        config.setAllowedOriginPatterns(List.of("*")); // allow all in dev
+        config.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
         config.setExposedHeaders(List.of("Authorization", "Content-Disposition"));
@@ -88,36 +83,7 @@ public class SecurityConfig {
         return source;
     }
 
-    /**
-     * Register a CorsFilter with highest precedence so preflight requests get CORS headers
-     * before Spring Security or other filters can block them.
-     */
-    @Bean
-    public FilterRegistrationBean<CorsFilter> corsFilterRegistration() {
-        CorsConfiguration config = new CorsConfiguration();
-
-        config.setAllowedOriginPatterns(List.of(
-            "http://localhost:4200",
-            "https://localhost:4200",
-            "http://192.168.164.195:4200",
-            "https://192.168.164.195:4200",
-            "https://10.179.254.162:4200/",
-            "https://10.180.27.207:4200/"
-        ));
-        config.setAllowCredentials(true);
-        config.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
-        config.setAllowedHeaders(List.of("*"));
-        config.setExposedHeaders(List.of("Authorization", "Content-Disposition"));
-        config.setMaxAge(3600L);
-
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", config);
-
-        FilterRegistrationBean<CorsFilter> bean = new FilterRegistrationBean<>(new CorsFilter(source));
-        bean.setOrder(Ordered.HIGHEST_PRECEDENCE);
-        return bean;
-    }
-
+    
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
@@ -136,13 +102,38 @@ public class SecurityConfig {
             	    .requestMatchers("/api/institutions/**").permitAll()
 
             	    // quizzes + questions REQUIRE login
+            	 // ✅ Public: decide login flow for /play/{code}
+            	    .requestMatchers(HttpMethod.GET, "/api/quizzes/code/*/creator-type").permitAll()
+
+            	    // 🔐 All other quiz APIs require login
             	    .requestMatchers("/api/quizzes/**").authenticated()
+
             	    .requestMatchers("/api/questions/**").authenticated()
             	    .requestMatchers("/api/results/**").authenticated()
 
             	    .requestMatchers("/api/proctor/**").authenticated()
 
             	    .requestMatchers("/h2-console/**").permitAll()
+            	    
+            	    
+            	    
+            	 // ===============================
+            	 // 🟣 POOL (LIVE QUIZ) – ISOLATED
+            	 // ===============================
+
+            	 // WebSocket handshake (SockJS)
+            	 .requestMatchers("/ws/**").permitAll()
+
+            	 // Players (NO LOGIN)
+            	 .requestMatchers(HttpMethod.POST, "/api/pool/join").permitAll()
+            	 .requestMatchers(HttpMethod.GET, "/api/pool/players/**").permitAll()
+
+            	 // 🔐 POOL HOST ONLY
+            	 .requestMatchers("/api/pool/start/**").hasRole("POOL_USER")
+            	 .requestMatchers("/api/pool/**").hasRole("POOL_USER")
+
+
+
 
             	    .anyRequest().authenticated()
             	);
@@ -154,3 +145,4 @@ public class SecurityConfig {
         return http.build();
     }
 }
+

@@ -23,9 +23,10 @@ public class CustomUserDetails implements UserDetails {
         this.user = user;
         Set<Role> roles = user.getRoles();
         this.authorities = (roles == null) ? Set.of() :
-                roles.stream()
-                     .map(r -> new SimpleGrantedAuthority(r.name())) // no "ROLE_" prefix required if you check authority names directly
-                     .collect(Collectors.toSet());
+            roles.stream()
+                 .map(r -> new SimpleGrantedAuthority("ROLE_" + r.name()))
+                 .collect(Collectors.toSet());
+
     }
 
     @Override

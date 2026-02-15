@@ -79,6 +79,10 @@ public class Quiz {
     @OneToMany(mappedBy = "quiz", cascade = CascadeType.ALL, orphanRemoval = true)
     @JsonIgnore
     private List<QuizResult> results;
+    
+    @Column(length = 20)
+    private String creatorType; // GENERAL | POOL | INSTITUTION
+
 
 
     // --- CUSTOM CONSTRUCTOR (USED DURING QUIZ CREATION) ---
